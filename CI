@@ -1,0 +1,141 @@
+import requests
+import time
+import xml.etree.ElementTree as ET
+
+# -----------------------------
+# Jenkins Configuration
+# -----------------------------
+JENKINS_URL = "http://localhost:8080"
+USER = "admin"
+API_TOKEN = "your_api_token_here"
+
+session = requests.Session()
+session.auth = (USER, API_TOKEN)
+
+# -----------------------------
+# Trigger Jenkins Job
+# -----------------------------
+def trigger_job(job_name):
+    url = f"{JENKINS_URL}/job/{job_name}/build"
+    response = session.post(url)
+    if response.status_code == 201:
+        print(f"[+] Job '{job_name}' triggered successfully!")
+    else:
+        print(f"[-] Failed to trigger job: {response.status_code}")
+
+# -----------------------------
+# Get Job Build Number
+# -----------------------------
+def get_last_build_number(job_name):
+    url = f"{JENKINS_URL}/job/{job_name}/api/json"
+    response = session.get(url).json()
+    return response['lastBuild']['number']
+
+# -----------------------------
+# Get Build Status
+# -----------------------------
+def get_build_status(job_name, build_number):
+    url = f"{JENKINS_URL}/job/{job_name}/{build_number}/api/json"
+    response = session.get(url).json()
+    return response.get("result")
+
+# -----------------------------
+# Get Build Console Log
+# -----------------------------
+def get_console_log(job_name, build_number):
+    url = f"{JENKINS_URL}/job/{job_name}/{build_number}/consoleText"
+    response = session.get(url)
+    return response.text
+
+# -----------------------------
+# Create New Job from XML
+# -----------------------------
+def create_job(job_name, xml_config):
+    url = f"{JENKINS_URL}/createItem?name={job_name}"
+    headers = {"Content-Type": "application/xml"}
+    response = session.post(url, data=xml_config, headers=headers)
+    if response.status_code == 200:
+        print(f"[+] Job '{job_name}' created successfully!")
+    else:
+        print(f"[-] Failed to create job: {response.status_code}")
+
+# -----------------------------
+# Disable Job
+# -----------------------------
+def disable_job(job_name):
+    url = f"{JENKINS_URL}/job/{job_name}/disable"
+    response = session.post(url)
+    print("[+] Job disabled." if response.ok else "[-] Failed to disable job.")
+
+# -----------------------------
+# Enable Job
+# -----------------------------
+def enable_job(job_name):
+    url = f"{JENKINS_URL}/job/{job_name}/enable"
+    response = session.post(url)
+    print("[+] Job enabled." if response.ok else "[-] Failed to enable job.")
+
+# -----------------------------
+# List All Jobs
+# -----------------------------
+def list_jobs():
+    url = f"{JENKINS_URL}/api/json"
+    jobs = session.get(url).json()['jobs']
+    for job in jobs:
+        print(f"- {job['name']} ({job['color']})")
+
+# -----------------------------
+# Wait for Job Completion
+# -----------------------------
+def wait_for_completion(job_name, build_number):
+    print("[*] Waiting for build to finish...")
+    while True:
+        status = get_build_status(job_name, build_number)
+        if status is not None:
+            print(f"[+] Build completed with status: {status}")
+            break
+        time.sleep(2)
+
+# -----------------------------
+# XML Template for New Job
+# -----------------------------
+JOB_XML = """<project>
+  <actions/>
+  <description>Automated Job Created from Python</description>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>echo Hello from Python Automation!</command>
+    </hudson.tasks.Shell>
+  </builders>
+</project>
+"""
+
+# -----------------------------
+# Main Automation Flow
+# -----------------------------
+if __name__ == "__main__":
+    print("==== Jenkins Automation Script ====")
+
+    # List jobs
+    print("\n[*] Available Jobs:")
+    list_jobs()
+
+    # Create New Job
+    create_job("python-created-job", JOB_XML)
+
+    # Trigger Job
+    trigger_job("python-created-job")
+
+    # Get last build number
+    time.sleep(3)
+    build_no = get_last_build_number("python-created-job")
+    print(f"[*] Last Build Number: {build_no}")
+
+    # Wait for build to finish
+    wait_for_completion("python-created-job", build_no)
+
+    # Get console log
+    print("\n===== Console Log =====")
+    print(get_console_log("python-created-job", build_no))
+
+    print("\n[*] Automation Complete!")
